@@ -1,0 +1,72 @@
+plugins {
+        id 'com.android.application'
+        }
+
+        android {
+            namespace 'com.hackerai.rootspoofer'
+                compileSdk 34
+
+                    defaultConfig {
+                            applicationId "com.hackerai.rootspoofer"
+                                    minSdk 26
+                                            targetSdk 34
+                                                    versionCode 1
+                                                            versionName "1.0"
+
+                                                                    testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+                                                                        }
+
+                                                                            buildTypes {
+                                                                                    release {
+                                                                                                minifyEnabled false
+                                                                                                            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                                                                                                                    }
+                                                                                                                            debug {
+                                                                                                                                        debuggable true
+                                                                                                                                                    minifyEnabled false
+                                                                                                                                                            }
+                                                                                                                                                                }
+
+                                                                                                                                                                    compileOptions {
+                                                                                                                                                                            sourceCompatibility JavaVersion.VERSION_11
+                                                                                                                                                                                    targetCompatibility JavaVersion.VERSION_11
+                                                                                                                                                                                        }
+
+                                                                                                                                                                                            packagingOptions {
+                                                                                                                                                                                                    // Avoid duplicate META-INF files from embedded jars
+                                                                                                                                                                                                            exclude 'META-INF/DEPENDENCIES'
+                                                                                                                                                                                                                    exclude 'META-INF/LICENSE'
+                                                                                                                                                                                                                            exclude 'META-INF/LICENSE.txt'
+                                                                                                                                                                                                                                    exclude 'META-INF/NOTICE'
+                                                                                                                                                                                                                                            exclude 'META-INF/NOTICE.txt'
+                                                                                                                                                                                                                                                }
+
+                                                                                                                                                                                                                                                    // Allow large APK (apktool.jar + signer + frida gadgets ≈ 40MB)
+                                                                                                                                                                                                                                                        splits {
+                                                                                                                                                                                                                                                                abi {
+                                                                                                                                                                                                                                                                            enable false
+                                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                                        }
+
+                                                                                                                                                                                                                                                                                        dependencies {
+                                                                                                                                                                                                                                                                                            implementation 'androidx.appcompat:appcompat:1.6.1'
+                                                                                                                                                                                                                                                                                                implementation 'com.google.android.material:material:1.11.0'
+                                                                                                                                                                                                                                                                                                    implementation 'androidx.activity:activity:1.8.2'
+                                                                                                                                                                                                                                                                                                        implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+                                                                                                                                                                                                                                                                                                            implementation 'androidx.core:core:1.12.0'
+                                                                                                                                                                                                                                                                                                                
+                                                                                                                                                                                                                                                                                                                    // FileProvider dependency (already in appcompat, but explicit)
+                                                                                                                                                                                                                                                                                                                        implementation 'androidx.documentfile:documentfile:1.0.1'
+                                                                                                                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                                                                                                                // For zip manipulation (fallback if apktool fails)
+                                                                                                                                                                                                                                                                                                                                    implementation 'org.zeroturnaround:zt-zip:1.16'
+                                                                                                                                                                                                                                                                                                                                        
+                                                                                                                                                                                                                                                                                                                                            // JSON parsing for frida config
+                                                                                                                                                                                                                                                                                                                                                implementation 'com.google.code.gson:gson:2.10.1'
+                                                                                                                                                                                                                                                                                                                                                    
+                                                                                                                                                                                                                                                                                                                                                        testImplementation 'junit:junit:4.13.2'
+                                                                                                                                                                                                                                                                                                                                                            androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+                                                                                                                                                                                                                                                                                                                                                                androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+                                                                                                                                                                                                                                                                                                                                                                }
+}

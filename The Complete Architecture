@@ -1,0 +1,41 @@
+$HOME/rootspoofer/
+├── bin/
+│   ├── apktool          # Wrapper script
+│   └── apk-signer       # Wrapper script
+├── gadgets/
+│   ├── frida-gadget-arm64.so
+│   ├── frida-gadget-arm.so
+│   ├── frida-gadget-x86_64.so
+│   └── frida-gadget-x86.so
+├── rootfs/              # Fake root filesystem
+│   ├── system/
+│   │   ├── bin/
+│   │   │   ├── magisk
+│   │   │   ├── magiskpolicy
+│   │   │   └── ...
+│   │   ├── xbin/
+│   │   │   ├── su        # Fake su binary
+│   │   │   ├── busybox   # Fake busybox
+│   │   │   └── [applet symlinks]
+│   │   ├── app/
+│   │   │   ├── Superuser.apk (stub)
+│   │   │   └── MagiskManager.apk (stub)
+│   │   ├── etc/init.d/99SuperSUDaemon
+│   │   └── build.prop    # Fake build props
+│   ├── sbin/su
+│   ├── data/
+│   │   ├── adb/magisk/config.sh
+│   │   └── local/tmp/
+│   └── selinux/
+│       ├── enforce       # "0"
+│       └── policy        # "Permissive"
+├── output/               # Patched APKs go here
+├── apktool.jar
+├── uber-apk-signer.jar
+├── patch_apk.sh          # MAIN PATCHER SCRIPT
+├── bypass_root.js        # Frida hook script
+├── frida-gadget.config.json
+├── download_gadgets.sh
+├── batch_patch.sh
+├── setup.sh
+└── replit_quickstart.sh

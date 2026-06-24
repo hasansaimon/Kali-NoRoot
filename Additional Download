@@ -1,0 +1,5 @@
+Download and place these in app/src/main/assets/:
+apktool.jar (v2.9.3+)
+uber-apk-signer.jar
+frida-gadget-*-android-arm64.so (rename removing version and arch suffix)
+frida-gadget-*-android-arm.so
