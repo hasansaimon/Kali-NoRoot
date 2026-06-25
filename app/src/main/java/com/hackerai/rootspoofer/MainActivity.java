@@ -7,10 +7,12 @@ import android.net.Uri;
 import android.os.*;
 import android.provider.OpenableColumns;
 import android.provider.Settings;
+import android.view.View;
 import android.widget.*;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import java.io.*;
 
