@@ -1,52 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-        <uses-permission android:name="android.permission.INTERNET" />
-            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-                <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-                    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-                        <uses-permission android:name="android.permission.INSTALL_PACKAGES" />
-                            <uses-permission android:name="android.permission.DELETE_PACKAGES" />
-                                <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.DELETE_PACKAGES" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-                                    <application
-                                            android:allowBackup="false"
-                                                    android:icon="@mipmap/ic_launcher"
-                                                            android:label="RootSpoofer"
-                                                                    android:supportsRtl="true"
-                                                                            android:theme="@style/Theme.RootSpoofer"
-                                                                                    android:requestLegacyExternalStorage="true">
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="RootSpoofer"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.RootSpoofer"
+        android:requestLegacyExternalStorage="true">
 
-                                                                                            <activity
-                                                                                                        android:name=".MainActivity"
-                                                                                                                    android:exported="true"
-                                                                                                                                android:screenOrientation="portrait">
-                                                                                                                                            <intent-filter>
-                                                                                                                                                            <action android:name="android.intent.action.MAIN" />
-                                                                                                                                                                            <category android:name="android.intent.category.LAUNCHER" />
-                                                                                                                                                                                        </intent-filter>
-                                                                                                                                                                                                    <intent-filter>
-                                                                                                                                                                                                                    <action android:name="android.intent.action.VIEW" />
-                                                                                                                                                                                                                                    <category android:name="android.intent.category.DEFAULT" />
-                                                                                                                                                                                                                                                    <data android:scheme="file" />
-                                                                                                                                                                                                                                                                    <data android:mimeType="application/vnd.android.package-archive" />
-                                                                                                                                                                                                                                                                                </intent-filter>
-                                                                                                                                                                                                                                                                                        </activity>
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/vnd.android.package-archive" />
+            </intent-filter>
+        </activity>
 
-                                                                                                                                                                                                                                                                                                <service
-                                                                                                                                                                                                                                                                                                            android:name=".PatcherService"
-                                                                                                                                                                                                                                                                                                                        android:foregroundServiceType="dataSync"
-                                                                                                                                                                                                                                                                                                                                    android:exported="false" />
+        <service
+            android:name=".PatcherService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
 
-                                                                                                                                                                                                                                                                                                                                            <provider
-                                                                                                                                                                                                                                                                                                                                                        android:name="androidx.core.content.FileProvider"
-                                                                                                                                                                                                                                                                                                                                                                    android:authorities="${applicationId}.fileprovider"
-                                                                                                                                                                                                                                                                                                                                                                                android:exported="false"
-                                                                                                                                                                                                                                                                                                                                                                                            android:grantUriPermissions="true">
-                                                                                                                                                                                                                                                                                                                                                                                                        <meta-data
-                                                                                                                                                                                                                                                                                                                                                                                                                        android:name="android.support.FILE_PROVIDER_PATHS"
-                                                                                                                                                                                                                                                                                                                                                                                                                                        android:resource="@xml/file_paths" />
-                                                                                                                                                                                                                                                                                                                                                                                                                                                </provider>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                    </application>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                    </manifest>
+    </application>
+</manifest>

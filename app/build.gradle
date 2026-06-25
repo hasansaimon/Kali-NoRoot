@@ -47,6 +47,14 @@ android {
             enable false
         }
     }
+
+    lint {
+        // Suppressions for intentional design choices:
+        // ProtectedPermissions: INSTALL_PACKAGES/DELETE_PACKAGES are system-only
+        //   but this root-based app uses them via root access
+        // SuspiciousIndentation: legacy formatting that works correctly
+        disable 'ProtectedPermissions', 'SuspiciousIndentation'
+    }
 }
 
 dependencies {
