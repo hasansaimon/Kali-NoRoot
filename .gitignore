@@ -48,3 +48,26 @@ Thumbs.db
 *.mov
 *.wmv
 
+# Gradle build cache
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android SDK (downloaded artifacts)
+android-sdk/
+
+# Local Android SDK configuration (machine-specific)
+local.properties
+
+# IDE-specific files
+*.iml
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Gradle wrapper binary
+*.jar
+
