@@ -1,57 +1,115 @@
 package com.rootprovider;
 
 import android.app.ActivityManager;
-import android.content.*;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
-import android.os.*;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Environment;
 import android.provider.Settings;
-import android.widget.*;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.cardview.widget.CardView;
 import androidx.core.content.FileProvider;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
-import java.io.*;
-import java.net.*;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.progressindicator.LinearProgressIndicator;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 public class MainActivity extends AppCompatActivity {
 
-    private Button btnStartStop, btnPatchApp, btnSelectApk, btnTestAPI;
-    private TextView tvStatus, tvLog, tvApiUrl, tvAdbInfo;
-    private ProgressBar progressBar;
-    private EditText etApiCommand;
+    // Service controls
+    private Button btnStartStop;
+    private TextView tvServiceStatus, tvApiUrl, tvAdbInfo;
+
+    // Status monitor
+    private TextView tvCurrentStage, tvProgressDetail;
+    private LinearProgressIndicator progressBar;
+
+    // App picker
+    private EditText etSearch;
+    private RecyclerView appListView;
+    private ImageView ivSelectedIcon;
+    private TextView tvSelectedApp;
+    private LinearLayout selectedAppCard;
+    private Button btnFilePicker;
+
+    // Actions
+    private Button btnPatch, btnVerify, btnInstall;
+
+    // Log
+    private TextView tvLog;
+
+    // State
     private String selectedApkPath;
+    private String selectedAppName;
     private boolean serviceRunning = false;
     private String deviceIp = "0.0.0.0";
-    private BroadcastReceiver receiver;
-    private static final int API_PORT = 8443;
-    private static final int ADB_PORT = 5555;
+    private String lastPatchedApkPath;
+    private AppListAdapter appAdapter;
+    private List<AppInfo> allApps = new ArrayList<>();
+    private BroadcastReceiver updateReceiver;
 
-    private final ActivityResultLauncher<String> filePicker = 
+    // File picker
+    private final ActivityResultLauncher<String> filePickerLauncher =
         registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
-            if (uri != null) {
-                try {
-                    String name = getFileName(uri);
-                    InputStream in = getContentResolver().openInputStream(uri);
-                    File outFile = new File(getCacheDir(), "input_" + System.currentTimeMillis() + ".apk");
-                    FileOutputStream out = new FileOutputStream(outFile);
+            if (uri == null) return;
+            try {
+                String name = getFileName(uri);
+                File outFile = new File(getCacheDir(), "input_" + System.currentTimeMillis() + ".apk");
+                try (InputStream in = getContentResolver().openInputStream(uri);
+                     OutputStream out = new FileOutputStream(outFile)) {
                     byte[] buf = new byte[8192];
                     int len;
                     while ((len = in.read(buf)) > 0) out.write(buf, 0, len);
-                    out.close();
-                    in.close();
-                    selectedApkPath = outFile.getAbsolutePath();
-                    log("Selected: " + name + " (" + outFile.length() / 1024 + " KB)");
-                    btnPatchApp.setEnabled(true);
-                    btnPatchApp.setText("PATCH: " + name);
-                } catch (IOException e) {
-                    log("Error: " + e.getMessage());
                 }
+                selectedApkPath = outFile.getAbsolutePath();
+                selectedAppName = name;
+                updateSelectedApp(null, name, true);
+                enableActions(true, false, false);
+                log("Selected (file): " + name);
+            } catch (Exception e) {
+                log("Error reading file: " + e.getMessage());
             }
         });
 
@@ -60,247 +118,368 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        initViews();
+        setupListeners();
+        registerReceivers();
+        ensurePermissions();
+        loadInstalledApps();
+        getDeviceIp();
+        checkCrashRecovery();
+    }
+
+    private void initViews() {
         btnStartStop = findViewById(R.id.btnStartStop);
-        btnPatchApp = findViewById(R.id.btnPatchApp);
-        btnSelectApk = findViewById(R.id.btnSelectApk);
-        btnTestAPI = findViewById(R.id.btnTestAPI);
-        tvStatus = findViewById(R.id.tvStatus);
-        tvLog = findViewById(R.id.tvLog);
+        tvServiceStatus = findViewById(R.id.tvServiceStatus);
         tvApiUrl = findViewById(R.id.tvApiUrl);
         tvAdbInfo = findViewById(R.id.tvAdbInfo);
+
+        tvCurrentStage = findViewById(R.id.tvCurrentStage);
+        tvProgressDetail = findViewById(R.id.tvProgressDetail);
         progressBar = findViewById(R.id.progressBar);
-        etApiCommand = findViewById(R.id.etApiCommand);
 
-        // Get device IP
-        getDeviceIp();
+        etSearch = findViewById(R.id.etSearch);
+        appListView = findViewById(R.id.appListView);
+        ivSelectedIcon = findViewById(R.id.ivSelectedIcon);
+        tvSelectedApp = findViewById(R.id.tvSelectedApp);
+        selectedAppCard = findViewById(R.id.selectedAppCard);
+        btnFilePicker = findViewById(R.id.btnFilePicker);
 
-        // Check if service is already running
-        serviceRunning = isServiceRunning(RootProviderService.class);
-        updateServiceUI();
-        updateConnectionInfo();
+        btnPatch = findViewById(R.id.btnPatch);
+        btnVerify = findViewById(R.id.btnVerify);
+        btnInstall = findViewById(R.id.btnInstall);
 
+        tvLog = findViewById(R.id.tvLog);
+
+        appAdapter = new AppListAdapter();
+        appListView.setLayoutManager(new LinearLayoutManager(this));
+        appListView.setAdapter(appAdapter);
+
+        tvServiceStatus.setText(R.string.service_stopped);
+        tvCurrentStage.setText(R.string.stage_idle);
+        tvProgressDetail.setText("Ready");
+        progressBar.setProgress(0);
+        enableActions(false, false, false);
+    }
+
+    private void setupListeners() {
         btnStartStop.setOnClickListener(v -> toggleService());
-        btnSelectApk.setOnClickListener(v -> filePicker.launch("application/vnd.android.package-archive"));
-        btnPatchApp.setOnClickListener(v -> patchApk());
-        btnTestAPI.setOnClickListener(v -> testAPI());
+        btnFilePicker.setOnClickListener(v ->
+            filePickerLauncher.launch("application/vnd.android.package-archive"));
+        btnPatch.setOnClickListener(v -> startPatching());
+        btnVerify.setOnClickListener(v -> verifyPatch());
+        btnInstall.setOnClickListener(v -> installPatchedApk());
 
-        // Enable WiFi debugging
-        enableWiFiDebugging();
-
-        // Register broadcast receiver for service updates
-        receiver = new BroadcastReceiver() {
+        etSearch.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int s2, int s3, int s4) {}
+            @Override public void afterTextChanged(Editable e) {}
             @Override
-            public void onReceive(Context context, Intent intent) {
-                String msg = intent.getStringExtra("message");
-                int progress = intent.getIntExtra("progress", -1);
-                boolean done = intent.getBooleanExtra("done", false);
-                boolean error = intent.getBooleanExtra("error", false);
-                
-                if (msg != null) log(msg);
-                if (progress >= 0) progressBar.setProgress(progress);
-                if (done) {
-                    progressBar.setVisibility(View.GONE);
-                    btnPatchApp.setEnabled(true);
-                    tvStatus.setText("✓ Patching complete!");
-                    // Show install button
-                    String outputPath = intent.getStringExtra("output_path");
-                    if (outputPath != null) {
-                        installPatchedApk(new File(outputPath));
-                    }
-                }
-                if (error) {
-                    progressBar.setVisibility(View.GONE);
-                    btnPatchApp.setEnabled(true);
-                    tvStatus.setText("✗ Error - check log");
+            public void onTextChanged(CharSequence q, int s, int b, int c) {
+                filterApps(q.toString());
+            }
+        });
+    }
+
+    private void registerReceivers() {
+        updateReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context ctx, Intent intent) {
+                String action = intent.getAction();
+                if (action == null) return;
+                switch (action) {
+                    case "PATCHER_PROGRESS":
+                        int stage = intent.getIntExtra("stage", 0);
+                        int pct = intent.getIntExtra("progress", 0);
+                        String detail = intent.getStringExtra("detail");
+                        updateStage(stage, pct, detail);
+                        progressBar.setProgress(pct);
+                        break;
+                    case "PATCHER_DONE":
+                        String out = intent.getStringExtra("output_path");
+                        lastPatchedApkPath = out;
+                        tvCurrentStage.setText(R.string.stage_done);
+                        tvCurrentStage.setTextColor(getColor(android.R.color.holo_green_light));
+                        tvProgressDetail.setText("Output: " + new File(out).getName());
+                        progressBar.setProgress(100);
+                        enableActions(false, true, true);
+                        log("✓ Patching complete!");
+                        saveCrashRecovery(out);
+                        break;
+                    case "PATCHER_ERROR":
+                        String err = intent.getStringExtra("error");
+                        tvCurrentStage.setText(R.string.stage_failed);
+                        tvCurrentStage.setTextColor(getColor(android.R.color.holo_red_light));
+                        tvProgressDetail.setText(err);
+                        progressBar.setProgress(0);
+                        enableActions(true, false, false);
+                        log("✗ Error: " + err);
+                        break;
+                    case "ROOT_PROVIDER_UPDATE":
+                        String msg = intent.getStringExtra("message");
+                        if (msg != null) log(msg);
+                        break;
                 }
             }
         };
-        LocalBroadcastManager.getInstance(this).registerReceiver(
-            receiver, new IntentFilter("ROOT_PROVIDER_UPDATE"));
+        IntentFilter f = new IntentFilter();
+        f.addAction("PATCHER_PROGRESS");
+        f.addAction("PATCHER_DONE");
+        f.addAction("PATCHER_ERROR");
+        f.addAction("ROOT_PROVIDER_UPDATE");
+        LocalBroadcastManager.getInstance(this).registerReceiver(updateReceiver, f);
+    }
 
-        // Auto-start service
-        if (!serviceRunning) {
-            toggleService();
+    private void updateStage(int stage, int pct, String detail) {
+        String[] stages = {
+            "Idle", "Analyzing APK...", "Extracting APK...",
+            "Decompiling with apktool...", "Injecting fake root environment...",
+            "Deploying Frida gadget...", "Patching smali entry points...",
+            "Setting debuggable flag...", "Recompiling APK...",
+            "Signing APK...", "Verifying patched APK..."
+        };
+        String text = (stage >= 0 && stage < stages.length) ? stages[stage] : "Working...";
+        tvCurrentStage.setText(text);
+        tvCurrentStage.setTextColor(getColor(android.R.color.white));
+        tvProgressDetail.setText(detail != null ? detail : pct + "%");
+    }
+
+    private void checkCrashRecovery() {
+        SharedPreferences prefs = getSharedPreferences("rootprovider", MODE_PRIVATE);
+        String lastPath = prefs.getString("last_patch_path", null);
+        if (lastPath == null || !new File(lastPath).exists()) return;
+
+        lastPatchedApkPath = lastPath;
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.crash_recovery_title)
+            .setMessage(R.string.crash_recovery_body + "\n\n" + lastPath)
+            .setPositiveButton("INSTALL", (d, w) -> installPatchedApk())
+            .setNegativeButton("VERIFY", (d, w) -> verifyPatch())
+            .setNeutralButton("DISCARD", (d, w) -> {
+                new File(lastPath).delete();
+                prefs.edit().remove("last_patch_path").apply();
+                lastPatchedApkPath = null;
+                enableActions(true, false, false);
+            })
+            .setCancelable(true)
+            .show();
+    }
+
+    private void saveCrashRecovery(String path) {
+        getSharedPreferences("rootprovider", MODE_PRIVATE)
+            .edit()
+            .putString("last_patch_path", path)
+            .apply();
+    }
+
+    private void ensurePermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            !getPackageManager().canRequestPackageInstalls()) {
+            startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                .setData(Uri.parse("package:" + getPackageName())));
         }
+    }
+
+    private void loadInstalledApps() {
+        allApps.clear();
+        PackageManager pm = getPackageManager();
+        Intent i = new Intent(Intent.ACTION_MAIN, null);
+        i.addCategory(Intent.CATEGORY_LAUNCHER);
+        List<ResolveInfo> ris = pm.queryIntentActivities(i, 0);
+        for (ResolveInfo ri : ris) {
+            if (ri.activityInfo == null) continue;
+            String pkg = ri.activityInfo.packageName;
+            if (pkg.equals(getPackageName())) continue;
+            try {
+                Drawable icon = ri.activityInfo.loadIcon(pm);
+                String name = ri.activityInfo.loadLabel(pm).toString();
+                allApps.add(new AppInfo(name, pkg, icon));
+            } catch (Exception ignored) {}
+        }
+        Collections.sort(allApps, (a, b) -> a.name.compareToIgnoreCase(b.name));
+        appAdapter.setData(allApps);
+    }
+
+    private void filterApps(String q) {
+        if (q.isEmpty()) {
+            appAdapter.setData(allApps);
+            return;
+        }
+        List<AppInfo> filtered = new ArrayList<>();
+        String lower = q.toLowerCase();
+        for (AppInfo a : allApps) {
+            if (a.name.toLowerCase().contains(lower) ||
+                a.packageName.toLowerCase().contains(lower))
+                filtered.add(a);
+        }
+        appAdapter.setData(filtered);
+    }
+
+    private void onAppTapped(AppInfo app) {
+        // Warn about Play Store / Google apps
+        String pkg = app.packageName.toLowerCase();
+        if (pkg.contains("vending") || pkg.contains("google") ||
+            pkg.contains("gms") || pkg.contains("playstore")) {
+            new AlertDialog.Builder(this)
+                .setTitle(R.string.play_store_warning_title)
+                .setMessage(R.string.play_store_warning_body)
+                .setPositiveButton(R.string.continue_, (d, w) -> selectApp(app))
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+            return;
+        }
+        selectApp(app);
+    }
+
+    private void selectApp(AppInfo app) {
+        selectedAppName = app.name + " (" + app.packageName + ")";
+        updateSelectedApp(app.icon, selectedAppName, true);
+        try {
+            ApplicationInfo ai = getPackageManager()
+                .getApplicationInfo(app.packageName, 0);
+            File src = new File(ai.sourceDir);
+            File dst = new File(getCacheDir(),
+                "to_patch_" + app.packageName.replace('.', '_') + ".apk");
+            try (InputStream in = new FileInputStream(src);
+                 OutputStream out = new FileOutputStream(dst)) {
+                byte[] buf = new byte[8192];
+                int len;
+                while ((len = in.read(buf)) > 0) out.write(buf, 0, len);
+            }
+            selectedApkPath = dst.getAbsolutePath();
+            enableActions(true, false, false);
+            log("Selected: " + app.name + " (" +
+                String.format("%.1f", dst.length() / 1048576.0) + " MB)");
+        } catch (Exception e) {
+            log("Error: " + e.getMessage());
+            Toast.makeText(this, "Cannot read APK", Toast.LENGTH_SHORT).show();
+            enableActions(false, false, false);
+        }
+    }
+
+    private void updateSelectedApp(Drawable icon, String name, boolean show) {
+        selectedAppCard.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (icon != null) ivSelectedIcon.setImageDrawable(icon);
+        tvSelectedApp.setText(name);
+    }
+
+    private void enableActions(boolean patch, boolean verify, boolean install) {
+        btnPatch.setEnabled(patch);
+        btnVerify.setEnabled(verify);
+        btnInstall.setEnabled(install);
     }
 
     private void getDeviceIp() {
         try {
-            WifiManager wifi = (WifiManager) getApplicationContext()
+            WifiManager wm = (WifiManager) getApplicationContext()
                 .getSystemService(Context.WIFI_SERVICE);
-            if (wifi != null) {
-                WifiInfo info = wifi.getConnectionInfo();
-                int ipInt = info.getIpAddress();
+            if (wm != null) {
+                WifiInfo wi = wm.getConnectionInfo();
+                int ip = wi.getIpAddress();
                 deviceIp = String.format(Locale.US, "%d.%d.%d.%d",
-                    (ipInt & 0xff), (ipInt >> 8 & 0xff),
-                    (ipInt >> 16 & 0xff), (ipInt >> 24 & 0xff));
+                    ip & 0xff, (ip >> 8) & 0xff,
+                    (ip >> 16) & 0xff, (ip >> 24) & 0xff);
             }
         } catch (Exception e) {
             deviceIp = "127.0.0.1";
         }
-    }
-
-    private void updateConnectionInfo() {
-        String apiUrl = "http://" + deviceIp + ":" + API_PORT;
-        tvApiUrl.setText("API: " + apiUrl);
-        tvAdbInfo.setText("ADB: " + deviceIp + ":" + ADB_PORT);
-    }
-
-    private void enableWiFiDebugging() {
-        // Try to enable WiFi ADB debugging
-        try {
-            // Enable developer settings and WiFi debugging
-            Settings.Global.putInt(getContentResolver(), 
-                Settings.Global.ADB_ENABLED, 1);
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                Settings.Global.putInt(getContentResolver(),
-                    "adb_wifi_enabled", 1);
-            }
-            
-            log("WiFi debugging enabled on " + deviceIp);
-        } catch (Exception e) {
-            log("WiFi debugging: " + e.getMessage());
-            log("Enable manually: Developer Options → Wireless Debugging");
-        }
-    }
-
-    private void testAPI() {
-        String cmd = etApiCommand.getText().toString().trim();
-        if (cmd.isEmpty()) cmd = "ping";
-        
-        new Thread(() -> {
-            try {
-                String apiUrl = "http://" + deviceIp + ":" + API_PORT;
-                URL url = new URL(apiUrl);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setDoOutput(true);
-                conn.setConnectTimeout(5000);
-                conn.setReadTimeout(5000);
-                
-                String jsonCmd = "{\"command\":\"" + cmd + "\",\"params\":{}}";
-                
-                OutputStream os = conn.getOutputStream();
-                os.write(jsonCmd.getBytes());
-                os.flush();
-                
-                BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(conn.getInputStream()));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) response.append(line);
-                reader.close();
-                
-                log("API Response: " + response.toString());
-                
-            } catch (Exception e) {
-                log("API Error: " + e.getMessage());
-            }
-        }).start();
+        tvApiUrl.setText("API: " + deviceIp + ":8443");
+        tvAdbInfo.setText("ADB: " + deviceIp + ":5555");
     }
 
     private void toggleService() {
         Intent intent = new Intent(this, RootProviderService.class);
         if (!serviceRunning) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent);
-            } else {
-                startService(intent);
-            }
+            startForegroundService(intent);
             serviceRunning = true;
-            updateServiceUI();
-            log("✓ Root provider service started");
-            log("  API: http://" + deviceIp + ":" + API_PORT);
-            log("  ADB: " + deviceIp + ":" + ADB_PORT);
+            btnStartStop.setText(R.string.stop_service);
+            btnStartStop.setBackgroundTintList(
+                getColorStateList(android.R.color.holo_red_light));
+            tvServiceStatus.setText(R.string.service_active);
+            tvServiceStatus.setTextColor(
+                getColor(android.R.color.holo_green_light));
+            log("✓ Service started | API: " + deviceIp + ":8443");
         } else {
             stopService(intent);
             serviceRunning = false;
-            updateServiceUI();
-            log("✗ Root provider service stopped");
+            btnStartStop.setText(R.string.start_service);
+            btnStartStop.setBackgroundTintList(
+                getColorStateList(android.R.color.holo_green_light));
+            tvServiceStatus.setText(R.string.service_stopped);
+            tvServiceStatus.setTextColor(
+                getColor(android.R.color.holo_red_light));
+            log("✗ Service stopped");
         }
     }
 
-    private void updateServiceUI() {
-        if (serviceRunning) {
-            btnStartStop.setText("STOP ROOT PROVIDER");
-            btnStartStop.setBackgroundColor(0xFFFF4444);
-            tvStatus.setText("● FAKE ROOT ACTIVE");
-            tvStatus.setTextColor(0xFF00E676);
-        } else {
-            btnStartStop.setText("START ROOT PROVIDER");
-            btnStartStop.setBackgroundColor(0xFF00E676);
-            tvStatus.setText("○ Service Stopped");
-            tvStatus.setTextColor(0xFFFF4444);
+    private void startPatching() {
+        if (selectedApkPath == null) {
+            Toast.makeText(this, "No APK selected", Toast.LENGTH_SHORT).show();
+            return;
         }
+        String lower = new File(selectedApkPath).getName().toLowerCase();
+        if (lower.contains("play") || lower.contains("store") ||
+            lower.contains("google") || lower.contains("gms")) {
+            new AlertDialog.Builder(this)
+                .setTitle(R.string.play_store_warning_title)
+                .setMessage(R.string.play_store_warning_body)
+                .setPositiveButton(R.string.continue_, (d, w) -> beginPatch())
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+            return;
+        }
+        beginPatch();
     }
 
-    private void patchApk() {
-        if (selectedApkPath == null) return;
-        
-        btnPatchApp.setEnabled(false);
-        progressBar.setVisibility(View.VISIBLE);
+    private void beginPatch() {
+        enableActions(false, false, false);
         progressBar.setProgress(0);
-        tvStatus.setText("Patching...");
+        tvCurrentStage.setText("Starting...");
+        tvCurrentStage.setTextColor(getColor(android.R.color.white));
+        tvProgressDetail.setText("Initializing...");
 
-        Intent intent = new Intent(this, ApkPatcher.class);
-        intent.putExtra("apk_path", selectedApkPath);
-        startService(intent);
+        Intent i = new Intent(this, ApkPatcherService.class);
+        i.putExtra("apk_path", selectedApkPath);
+        startForegroundService(i);
+
+        log("=== PATCH STARTED ===");
+        log("  APK: " + (selectedAppName != null ? selectedAppName : selectedApkPath));
     }
 
-    private void installPatchedApk(File apkFile) {
-        try {
-            Intent install = new Intent(Intent.ACTION_VIEW);
-            install.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            install.setDataAndType(
-                FileProvider.getUriForFile(this, 
-                    getPackageName() + ".fileprovider", apkFile),
-                "application/vnd.android.package-archive");
-            install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(install);
-            log("Install prompt sent");
-        } catch (Exception e) {
-            log("Install error: " + e.getMessage());
+    private void verifyPatch() {
+        if (lastPatchedApkPath == null || !new File(lastPatchedApkPath).exists()) {
+            Toast.makeText(this, "No patched APK to verify", Toast.LENGTH_SHORT).show();
+            return;
         }
-    }
+        tvCurrentStage.setText("Verifying...");
+        tvProgressDetail.setText("Checking integrity...");
+        btnVerify.setEnabled(false);
 
-    private boolean isServiceRunning(Class<?> serviceClass) {
-        ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
-            if (serviceClass.getName().equals(service.service.getClassName())) return true;
-        }
-        return false;
-    }
+        new Thread(() -> {
+            try {
+                File apk = new File(lastPatchedApkPath);
+                StringBuilder r = new StringBuilder();
+                r.append("=== VERIFICATION ===\n");
+                r.append("File: ").append(apk.getName()).append("\n");
+                r.append("Size: ").append(String.format("%.1f MB",
+                    apk.length() / 1048576.0)).append("\n\n");
 
-    private String getFileName(Uri uri) {
-        String name = "unknown.apk";
-        try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                int idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                if (idx >= 0) name = cursor.getString(idx);
-            }
-        } catch (Exception ignored) {}
-        return name;
-    }
+                try (ZipFile zf = new ZipFile(apk)) {
+                    r.append("[✓] Valid ZIP (").append(zf.size()).append(" entries)\n");
+                    check(r, zf, "AndroidManifest.xml", "AndroidManifest.xml");
+                    check(r, zf, "classes.dex", "classes.dex");
+                    check(r, zf, "Frida gadget", "lib/arm64-v8a/libfridagadget.so");
+                    check(r, zf, "bypass_root.js", "assets/bypass_root.js");
+                    check(r, zf, "frida config", "assets/frida-gadget.config.json");
+                    check(r, zf, "META-INF", "META-INF/MANIFEST.MF");
+                } catch (Exception e) {
+                    r.append("[✗] Not a valid ZIP: ").append(e.getMessage()).append("\n");
+                }
 
-    public void log(final String msg) {
-        runOnUiThread(() -> {
-            String time = new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date());
-            tvLog.append("[" + time + "] " + msg + "\n");
-            scrollLogToBottom();
-        });
-    }
+                boolean pass = r.indexOf("[✗]") == -1;
+                r.append("\n=== VERDICT: ").append(pass ? "VALID ✓" : "INCOMPLETE ✗").append(" ===");
 
-    private void scrollLogToBottom() {
-        ScrollView sv = findViewById(R.id.scrollView);
-        if (sv != null) sv.post(() -> sv.fullScroll(View.FOCUS_DOWN));
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (receiver != null) {
-            LocalBroadcastManager.getInstance(this).unregisterReceiver(receiver);
-        }
-    }
-}
+                String fr = r.toString();
+                runOnUiThread(() -> {
+                    log(fr);
+                    tvCurrentStage.setText(pass ? "✓ VERIFIED OK" : "✗ VERIFY FAILED");
+                    tvCurrentStage.setTextColor(getColor(pass ?
+                        android.R.color.holo_green_light : android.R.color.holo_red_lig
