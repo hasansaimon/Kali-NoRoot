@@ -56,7 +56,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:contentDescription="Select"
-            android:src="@android:drawable/ic_menu_arrow_1"
+            android:src="@android:drawable/ic_menu_more"
             android:alpha="0.5" />
 
     </LinearLayout>

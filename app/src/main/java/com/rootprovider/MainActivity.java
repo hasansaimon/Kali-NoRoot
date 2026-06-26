@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -16,6 +17,7 @@ import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.OpenableColumns;
 import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -321,7 +323,7 @@ public class MainActivity extends AppCompatActivity {
             new AlertDialog.Builder(this)
                 .setTitle(R.string.play_store_warning_title)
                 .setMessage(R.string.play_store_warning_body)
-                .setPositiveButton(R.string.continue_, (d, w) -> selectApp(app))
+                .setPositiveButton(R.string.continue_action, (d, w) -> selectApp(app))
                 .setNegativeButton(R.string.cancel, null)
                 .show();
             return;
@@ -421,7 +423,7 @@ public class MainActivity extends AppCompatActivity {
             new AlertDialog.Builder(this)
                 .setTitle(R.string.play_store_warning_title)
                 .setMessage(R.string.play_store_warning_body)
-                .setPositiveButton(R.string.continue_, (d, w) -> beginPatch())
+                .setPositiveButton(R.string.continue_action, (d, w) -> beginPatch())
                 .setNegativeButton(R.string.cancel, null)
                 .show();
             return;
@@ -482,4 +484,144 @@ public class MainActivity extends AppCompatActivity {
                     log(fr);
                     tvCurrentStage.setText(pass ? "✓ VERIFIED OK" : "✗ VERIFY FAILED");
                     tvCurrentStage.setTextColor(getColor(pass ?
-                        android.R.color.holo_green_light : android.R.color.holo_red_lig
+                        android.R.color.holo_green_light : android.R.color.holo_red_light));
+                });
+                btnVerify.setEnabled(true);
+            } catch (Exception e) {
+                String errMsg = "Verification error: " + e.getMessage();
+                log(errMsg);
+                runOnUiThread(() -> {
+                    tvCurrentStage.setText("✗ VERIFY FAILED");
+                    tvCurrentStage.setTextColor(getColor(android.R.color.holo_red_light));
+                    tvProgressDetail.setText(errMsg);
+                    btnVerify.setEnabled(true);
+                });
+            }
+        }).start();
+    }
+
+    private void check(StringBuilder r, ZipFile zf, String label, String path) {
+        ZipEntry entry = zf.getEntry(path);
+        if (entry != null) {
+            r.append("[✓] ").append(label).append(" (").append(entry.getSize()).append(" bytes)\n");
+        } else {
+            r.append("[✗] ").append(label).append(" MISSING\n");
+        }
+    }
+
+    private void installPatchedApk() {
+        if (lastPatchedApkPath == null || !new File(lastPatchedApkPath).exists()) {
+            Toast.makeText(this, "No patched APK to install", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        File apk = new File(lastPatchedApkPath);
+        try {
+            Uri uri = FileProvider.getUriForFile(this,
+                "com.rootprovider.fileprovider", apk);
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(uri, "application/vnd.android.package-archive");
+            intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            log("Installing: " + apk.getName());
+        } catch (Exception e) {
+            // Fallback: copy to Downloads and request install
+            try {
+                File downloads = Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_DOWNLOADS);
+                File copy = new File(downloads, apk.getName());
+                try (InputStream in = new FileInputStream(apk);
+                     OutputStream out = new FileOutputStream(copy)) {
+                    byte[] buf = new byte[8192];
+                    int len;
+                    while ((len = in.read(buf)) > 0) out.write(buf, 0, len);
+                }
+                Uri uri = FileProvider.getUriForFile(this,
+                    "com.rootprovider.fileprovider", copy);
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                intent.setDataAndType(uri, "application/vnd.android.package-archive");
+                intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                log("Copied to Downloads: " + copy.getAbsolutePath());
+            } catch (Exception e2) {
+                log("Install error: " + e2.getMessage());
+                Toast.makeText(this, "Cannot install APK", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private String getFileName(Uri uri) {
+        String name = "unknown.apk";
+        try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (idx >= 0) name = cursor.getString(idx);
+            }
+        } catch (Exception ignored) {}
+        if (name == null || !name.toLowerCase().endsWith(".apk")) name += ".apk";
+        return name;
+    }
+
+    private void log(String msg) {
+        String ts = new SimpleDateFormat("HH:mm:ss", Locale.US)
+            .format(new Date());
+        runOnUiThread(() -> {
+            tvLog.append("[" + ts + "] " + msg + "\n");
+            // Auto-scroll to bottom
+            ((ScrollView) tvLog.getParent()).fullScroll(View.FOCUS_DOWN);
+        });
+    }
+
+    // -- Data classes --
+
+    static class AppInfo {
+        final String name;
+        final String packageName;
+        final Drawable icon;
+        AppInfo(String name, String pkg, Drawable icon) {
+            this.name = name;
+            this.packageName = pkg;
+            this.icon = icon;
+        }
+    }
+
+    class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolder> {
+        private List<AppInfo> items = new ArrayList<>();
+
+        void setData(List<AppInfo> list) {
+            items = list;
+            notifyDataSetChanged();
+        }
+
+        @Override
+        public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+            View v = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.item_app, parent, false);
+            return new ViewHolder(v);
+        }
+
+        @Override
+        public void onBindViewHolder(ViewHolder h, int pos) {
+            AppInfo app = items.get(pos);
+            h.name.setText(app.name);
+            h.pkg.setText(app.packageName);
+            h.icon.setImageDrawable(app.icon);
+            h.itemView.setOnClickListener(v -> onAppTapped(app));
+        }
+
+        @Override
+        public int getItemCount() { return items.size(); }
+
+        class ViewHolder extends RecyclerView.ViewHolder {
+            final TextView name, pkg;
+            final ImageView icon;
+            ViewHolder(View v) {
+                super(v);
+                name = v.findViewById(R.id.appName);
+                pkg = v.findViewById(R.id.appPackage);
+                icon = v.findViewById(R.id.appIcon);
+            }
+        }
+    }
+}

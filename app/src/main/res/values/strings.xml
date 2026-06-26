@@ -49,13 +49,16 @@
 • App may refuse to run
 
 Do you want to continue anyway?</string>
-    <string name="continue">CONTINUE</string>
+    <string name="continue_action">CONTINUE</string>
     <string name="cancel">CANCEL</string>
 
     <!-- Crash recovery -->
     <string name="crash_recovery_title">Previous Patch Incomplete</string>
     <string name="crash_recovery_body">It looks like the previous patching session was interrupted. A patched APK was found. What would you like to do?</string>
     <string name="discard">DISCARD</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_description">RootProvider accessibility service for APK patching and root environment injection</string>
 
     <!-- Notifications -->
     <string name="channel_patcher">APK Patcher</string>

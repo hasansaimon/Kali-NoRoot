@@ -112,7 +112,7 @@ public class RootProviderService extends Service {
                     } else if (cmd.equals("patch_apk")) {
                         String apkPath = params.optString("apk_path", "");
                         if (!apkPath.isEmpty()) {
-                            Intent patchIntent = new Intent(RootProviderService.this, ApkPatcher.class);
+                            Intent patchIntent = new Intent(RootProviderService.this, ApkPatcherService.class);
                             patchIntent.putExtra("apk_path", apkPath);
                             startService(patchIntent);
                             response.put("message", "Patching started");
@@ -391,7 +391,7 @@ public class RootProviderService extends Service {
 
     private String executeCommand(String command) {
         try {
-            Process process = Runtime.getRuntime().exec(new String[]{"sh", "-c", command});
+            java.lang.Process process = Runtime.getRuntime().exec(new String[]{"sh", "-c", command});
             BufferedReader reader = new BufferedReader(
                 new InputStreamReader(process.getInputStream()));
             StringBuilder output = new StringBuilder();
@@ -404,6 +404,11 @@ public class RootProviderService extends Service {
         } catch (Exception e) {
             return "Error: " + e.getMessage();
         }
+    }
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        return null;
     }
 
     @Override

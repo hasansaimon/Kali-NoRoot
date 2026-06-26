@@ -66,7 +66,9 @@ task downloadFridaGadgets {
     doLast {
         jniDir.mkdirs()
         archs.each { arch, url ->
-            def soFile = file("$jniDir/$arch/libfridagadget.so")
+            def archDir = file("$jniDir/$arch")
+            archDir.mkdirs()
+            def soFile = file("$archDir/libfridagadget.so")
             if (!soFile.exists()) {
                 println "Downloading Frida gadget for $arch..."
                 def xzFile = file("${soFile.absolutePath}.xz")
