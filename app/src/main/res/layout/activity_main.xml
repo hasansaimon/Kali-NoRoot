@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212">
+
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="RootProvider v2.0"
+        android:textSize="26sp"
+        android:textColor="#00E676"
+        android:textStyle="bold"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Fake Root + WiFi ADB + API Server"
+        android:textColor="#888"
+        android:layout_marginBottom="16dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="#1a1a1a"
+        android:padding="12dp"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="API: "
+            android:textColor="#00E676"
+            android:textStyle="bold"/>
+        <TextView
+            android:id="@+id/tvApiUrl"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="http://0.0.0.0:8443"
+            android:textColor="#ccc"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="#1a1a1a"
+        android:padding="12dp"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ADB: "
+            android:textColor="#FF5722"
+            android:textStyle="bold"/>
+        <TextView
+            android:id="@+id/tvAdbInfo"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="0.0.0.0:5555"
+            android:textColor="#ccc"/>
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btnStartStop"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="START ROOT PROVIDER"
+        android:backgroundTint="#00E676"
+        android:textColor="#121212"
+        android:textStyle="bold"/>
+
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Service Stopped"
+        android:textColor="#FF4444"
+        android:textSize="16sp"
+        android:gravity="center"
+        android:padding="8dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="--- APK PATCHER ---"
+        android:textColor="#00E676"
+        android:gravity="center"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/btnSelectApk"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="SELECT APK TO PATCH"
+        android:backgroundTint="#333"
+        android:textColor="#fff"/>
+
+    <Button
+        android:id="@+id/btnPatchApp"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="NO APP SELECTED"
+        android:backgroundTint="#FF5722"
+        android:textColor="#fff"
+        android:enabled="false"
+        android:layout_marginTop="8dp"/>
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:visibility="gone"
+        android:layout_marginTop="8dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="--- API TEST ---"
+        android:textColor="#FF5722"
+        android:gravity="center"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="8dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/etApiCommand"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:hint="ping / exec:id / status"
+            android:textColor="#fff"
+            android:textColorHint="#666"
+            android:background="#1a1a1a"
+            android:padding="8dp"/>
+
+        <Button
+            android:id="@+id/btnTestAPI"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:text="SEND"
+            android:backgroundTint="#00E676"
+            android:textColor="#121212"
+            android:layout_marginLeft="8dp"/>
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="--- LOG ---"
+        android:textColor="#888"
+        android:layout_marginTop="16dp"/>
+
+    <ScrollView
+        android:id="@+id/scrollView"
+        android:layout_width="match_parent"
+        android:layout_height="300dp"
+        android:background="#0a0a0a"
+        android:padding="4dp">
+
+        <TextView
+            android:id="@+id/tvLog"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#ccc"
+            android:typeface="monospace"
+            android:textSize="10sp"
+            android:lineSpacingExtra="2dp"/>
+    </ScrollView>
+
+</LinearLayout>
+</ScrollView>

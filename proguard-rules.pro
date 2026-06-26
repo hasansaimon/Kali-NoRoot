@@ -1,11 +1,9 @@
-# Keep the patcher service
--keep class com.hackerai.rootspoofer.** { *; }
+# RootProvider ProGuard Rules
+# Keep all JSON parsing classes
+-keep class org.json.** { *; }
 
-# Keep embedded jar classes (apktool, signer)
--keep class brut.** { *; }
--keep class com.android.** { *; }
--keep class org.apache.** { *; }
+# Keep Shizuku
+-keep class rikka.shizuku.** { *; }
 
-# Don't obfuscate
--dontobfuscate
--dontoptimize
+# Keep our app classes
+-keep class com.rootprovider.** { *; }

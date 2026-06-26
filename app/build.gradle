@@ -1,0 +1,122 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.rootprovider'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.rootprovider"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "2.0"
+        
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            debuggable true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    packagingOptions {
+        exclude 'META-INF/DEPENDENCIES'
+        exclude 'META-INF/LICENSE'
+        exclude 'META-INF/LICENSE.txt'
+        exclude 'META-INF/NOTICE'
+        exclude 'META-INF/NOTICE.txt'
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.activity:activity:1.8.2'
+    implementation 'androidx.core:core:1.12.0'
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'dev.rikka.shizuku:api:13.1.5'
+    implementation 'dev.rikka.shizuku:provider:13.1.5'
+}
+
+// Download Frida gadgets + tools at build time
+task downloadFridaGadgets {
+    def archs = [
+        'arm64-v8a': 'https://github.com/frida/frida/releases/download/16.2.1/frida-gadget-16.2.1-android-arm64.so.xz',
+        'armeabi-v7a': 'https://github.com/frida/frida/releases/download/16.2.1/frida-gadget-16.2.1-android-arm.so.xz',
+        'x86_64': 'https://github.com/frida/frida/releases/download/16.2.1/frida-gadget-16.2.1-android-x86_64.so.xz'
+    ]
+    
+    def jniDir = file("src/main/jniLibs")
+    doLast {
+        jniDir.mkdirs()
+        archs.each { arch, url ->
+            def soFile = file("$jniDir/$arch/libfridagadget.so")
+            if (!soFile.exists()) {
+                println "Downloading Frida gadget for $arch..."
+                def xzFile = file("${soFile.absolutePath}.xz")
+                new URL(url).withInputStream { i -> xzFile.withOutputStream { it << i } }
+                // Decompress
+                def proc = ["xz", "-d", "-f", xzFile.absolutePath].execute()
+                proc.waitFor()
+                if (!soFile.exists()) {
+                    // Java fallback
+                    def inStream = new java.io.FileInputStream(xzFile)
+                    def outStream = new java.io.FileOutputStream(soFile)
+                    def buf = new byte[8192]
+                    int len
+                    while ((len = inStream.read(buf)) > 0) outStream.write(buf, 0, len)
+                    inStream.close()
+                    outStream.close()
+                    xzFile.delete()
+                }
+                println "  → ${soFile.length()} bytes"
+            }
+        }
+    }
+}
+
+task downloadApktool {
+    def dest = file("src/main/assets/apktool.jar")
+    doLast {
+        if (!dest.exists()) {
+            dest.parentFile.mkdirs()
+            println "Downloading apktool..."
+            new URL('https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar')
+                .withInputStream { i -> dest.withOutputStream { it << i } }
+        }
+    }
+}
+
+task generateAssets {
+    def assetsDir = file("src/main/assets")
+    doLast {
+        assetsDir.mkdirs()
+        
+        println "Assets directory ready at $assetsDir"
+        println "  bypass_root.js: ${file("$assetsDir/bypass_root.js").exists() ? "present" : "missing"}"
+        println "  frida-gadget.config.json: ${file("$assetsDir/frida-gadget.config.json").exists() ? "present" : "missing"}"
+    }
+}
+
+// Chain dependencies
+tasks.matching { it.name.startsWith('merge') && it.name.endsWith('Assets') }.all {
+    it.dependsOn generateAssets, downloadApktool
+}
+
+tasks.matching { it.name.startsWith('merge') && it.name.endsWith('JniLibFolders') }.all {
+    it.dependsOn downloadFridaGadgets
+}

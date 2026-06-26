@@ -1,37 +1,14 @@
-# Gradle build cache
-.gradle/
-build/
-!gradle/wrapper/gradle-wrapper.jar
-
-# Android SDK
-android-sdk/
-local.properties
-
-# IDE files
 *.iml
-.idea/
-.vscode/
-
-# OS files
+.gradle
+/local.properties
+/.idea
 .DS_Store
-Thumbs.db
-
-# Generated/patched APKs
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+/app/build
+/app/src/main/assets/apktool.jar
+/app/src/main/jniLibs
 *.apk
-
-# Downloaded tools (fetched by quickstart.sh)
-apktool.jar
-uber-apk-signer.jar
-
-# Frida gadgets (downloaded by download_gadgets.sh)
-gadgets/
-frida-gadget-*.so
-
-# Output directory for patched APKs
-output/
-
-# Working directories
-work_*/
-
-# Termux artifacts
-.ttxfolder
