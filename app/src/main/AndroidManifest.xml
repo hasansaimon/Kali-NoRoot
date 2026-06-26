@@ -7,23 +7,22 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
-        android:label="RootProvider"
+        android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.MaterialComponents.DayNight.DarkActionBar"
-        android:debuggable="true"
+        android:theme="@style/Theme.RootProvider"
         android:requestLegacyExternalStorage="true"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config">
 
+        <!-- Launcher Activity -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -39,16 +38,36 @@
             </intent-filter>
         </activity>
 
+        <!-- Root Provider Service (fake root environment + API/ADB servers) -->
         <service
             android:name=".RootProviderService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
 
+        <!-- APK Patcher Service (foreground service with 10-stage pipeline) -->
+        <service
+            android:name=".ApkPatcherService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+
+        <!-- Root Content Provider (exposes root check API to other apps) -->
         <provider
             android:name=".RootContentProvider"
             android:authorities="${applicationId}.root"
             android:exported="true" />
 
+        <!-- File Provider for APK sharing -->
+        <provider
+            android:name=".ApkFileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- Accessibility Service for root injection -->
         <service
             android:name=".RootAccessibilityService"
             android:exported="true"
@@ -60,25 +79,6 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
-
-        <provider
-            android:name=".ApkFileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
-
-        <provider
-            android:name="rikka.shizuku.ShizukuProvider"
-            android:authorities="${applicationId}.shizuku"
-            android:enabled="true"
-            android:exported="true"
-            android:multiprocess="false"
-            android:grantUriPermissions="true"
-            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
     </application>
 </manifest>
