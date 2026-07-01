@@ -30,8 +30,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_11
-        targetCompatibility JavaVersion.VERSION_11
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     packagingOptions {
@@ -52,35 +52,55 @@ dependencies {
     implementation 'androidx.cardview:cardview:1.0.0'
     implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
     implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'org.bouncycastle:bcprov-jdk15on:1.70'
+    implementation 'org.bouncycastle:bcpkix-jdk15on:1.70'
 }
 
 task downloadFridaGadgets {
-    def archs = [
-        'arm64-v8a': "https://github.com/frida/frida/releases/download/${fridaVersion}/frida-gadget-${fridaVersion}-android-arm64.so.xz",
-        'armeabi-v7a': "https://github.com/frida/frida/releases/download/${fridaVersion}/frida-gadget-${fridaVersion}-android-arm.so.xz",
-        'x86_64':     "https://github.com/frida/frida/releases/download/${fridaVersion}/frida-gadget-${fridaVersion}-android-x86_64.so.xz",
-        'x86':        "https://github.com/frida/frida/releases/download/${fridaVersion}/frida-gadget-${fridaVersion}-android-x86.so.xz"
-    ]
-    def jniDir = file("src/main/jniLibs")
+    def enabled = project.hasProperty('downloadFrida') && project.property('downloadFrida').toString().toBoolean()
     doLast {
+        if (!enabled) {
+            println "Skipping downloadFridaGadgets. Pass -PdownloadFrida=true to enable it."
+            return
+        }
+
+        def archs = [
+            'arm64-v8a': "https://github.com/frida/frida/releases/download/${fridaVersion}/frida-gadget-${fridaVersion}-android-arm64.so.xz",
+            'armeabi-v7a': "https://github.com/frida/frida/releases/download/${fridaVersion}/frida-gadget-${fridaVersion}-android-arm.so.xz",
+            'x86_64':     "https://github.com/frida/frida/releases/download/${fridaVersion}/frida-gadget-${fridaVersion}-android-x86_64.so.xz",
+            'x86':        "https://github.com/frida/frida/releases/download/${fridaVersion}/frida-gadget-${fridaVersion}-android-x86.so.xz"
+        ]
+        def jniDir = file("src/main/jniLibs")
         jniDir.mkdirs()
+        boolean hasXz = ['sh', '-c', 'command -v xz >/dev/null 2>&1'].execute().waitFor() == 0
         archs.each { arch, url ->
             def soFile = file("$jniDir/$arch/libfridagadget.so")
-            if (!soFile.exists()) {
+            if (soFile.exists()) {
+                println "Frida gadget already exists for $arch, skipping."
+                return
+            }
+            try {
                 println "Downloading Frida gadget for $arch..."
+                def archDir = file("$jniDir/$arch")
+                archDir.mkdirs()
                 def xzFile = file("${soFile.absolutePath}.xz")
-                new URL(url).withInputStream { i -> xzFile.withOutputStream { it << i } }
+                if (!xzFile.exists()) {
+                    new URL(url).withInputStream { i -> xzFile.withOutputStream { it << i } }
+                }
+                if (!hasXz) {
+                    println "  -> xz is not installed; downloaded ${xzFile.name} but cannot decompress."
+                    println "  -> Please install xz or provide ${soFile.name} in ${archDir.absolutePath}."
+                    return
+                }
                 def proc = ["xz", "-d", "-f", xzFile.absolutePath].execute()
                 proc.waitFor()
                 if (!soFile.exists()) {
-                    def inStream = new java.io.FileInputStream(xzFile)
-                    def outStream = new java.io.FileOutputStream(soFile)
-                    def buf = new byte[8192]; int len
-                    while ((len = inStream.read(buf)) > 0) outStream.write(buf, 0, len)
-                    inStream.close(); outStream.close()
+                    println "  -> Decompression failed for ${xzFile.name}, leaving it in place."
+                    return
                 }
-                xzFile.delete()
                 println "  -> ${soFile.length()} bytes"
+            } catch (Exception e) {
+                println "Warning: failed to prepare Frida gadget for $arch: ${e.message}"
             }
         }
     }

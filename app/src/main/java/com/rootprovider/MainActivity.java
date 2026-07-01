@@ -1,11 +1,12 @@
 package com.rootprovider;
 
-import android.Manifest;
+import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -15,8 +16,8 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
+import android.os.Environment;
+import android.provider.OpenableColumns;
 import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -33,12 +34,9 @@ import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.cardview.widget.CardView;
-import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -51,13 +49,13 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.ref.WeakReference;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public class MainActivity extends AppCompatActivity {
@@ -78,7 +76,7 @@ public class MainActivity extends AppCompatActivity {
     private LinearLayout selectedAppCard;
     private Button btnFilePicker;
 
-    // Action buttons
+    // Actions
     private Button btnPatch, btnVerify, btnInstall;
 
     // Log
@@ -91,7 +89,7 @@ public class MainActivity extends AppCompatActivity {
     private String deviceIp = "0.0.0.0";
     private String lastPatchedApkPath;
     private AppListAdapter appAdapter;
-    private final List<AppInfo> allApps = new ArrayList<>();
+    private List<AppInfo> allApps = new ArrayList<>();
     private BroadcastReceiver updateReceiver;
 
     // File picker
@@ -100,8 +98,7 @@ public class MainActivity extends AppCompatActivity {
             if (uri == null) return;
             try {
                 String name = getFileName(uri);
-                File outFile = new File(getCacheDir(),
-                    "input_" + System.currentTimeMillis() + ".apk");
+                File outFile = new File(getCacheDir(), "input_" + System.currentTimeMillis() + ".apk");
                 try (InputStream in = getContentResolver().openInputStream(uri);
                      OutputStream out = new FileOutputStream(outFile)) {
                     byte[] buf = new byte[8192];
@@ -118,16 +115,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-    // Permission launcher (API 33+)
-    private final ActivityResultLauncher<String> notifPermissionLauncher =
-        registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
-            if (!granted) {
-                Toast.makeText(this,
-                    "Notification permission denied — patcher notifications will be hidden",
-                    Toast.LENGTH_LONG).show();
-            }
-        });
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -139,31 +126,7 @@ public class MainActivity extends AppCompatActivity {
         ensurePermissions();
         loadInstalledApps();
         getDeviceIp();
-
-        if (savedInstanceState == null) {
-            checkCrashRecovery();
-        } else {
-            // Restore state after rotation
-            selectedApkPath = savedInstanceState.getString("apk_path");
-            selectedAppName = savedInstanceState.getString("app_name");
-            lastPatchedApkPath = savedInstanceState.getString("last_patch");
-            serviceRunning = savedInstanceState.getBoolean("service_running", false);
-            if (serviceRunning) updateServiceUI(true);
-            if (lastPatchedApkPath != null && new File(lastPatchedApkPath).exists()) {
-                enableActions(false, true, true);
-            } else if (selectedApkPath != null) {
-                enableActions(true, false, false);
-            }
-        }
-    }
-
-    @Override
-    protected void onSaveInstanceState(@NonNull Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putString("apk_path", selectedApkPath);
-        outState.putString("app_name", selectedAppName);
-        outState.putString("last_patch", lastPatchedApkPath);
-        outState.putBoolean("service_running", serviceRunning);
+        checkCrashRecovery();
     }
 
     private void initViews() {
@@ -230,17 +193,15 @@ public class MainActivity extends AppCompatActivity {
                         int pct = intent.getIntExtra("progress", 0);
                         String detail = intent.getStringExtra("detail");
                         updateStage(stage, pct, detail);
-                        progressBar.setProgressCompat(pct, true);
+                        progressBar.setProgress(pct);
                         break;
                     case "PATCHER_DONE":
                         String out = intent.getStringExtra("output_path");
                         lastPatchedApkPath = out;
                         tvCurrentStage.setText(R.string.stage_done);
-                        tvCurrentStage.setTextColor(
-                            ContextCompat.getColor(MainActivity.this,
-                                android.R.color.holo_green_light));
+                        tvCurrentStage.setTextColor(getColor(android.R.color.holo_green_light));
                         tvProgressDetail.setText("Output: " + new File(out).getName());
-                        progressBar.setProgressCompat(100, true);
+                        progressBar.setProgress(100);
                         enableActions(false, true, true);
                         log("✓ Patching complete!");
                         saveCrashRecovery(out);
@@ -248,11 +209,9 @@ public class MainActivity extends AppCompatActivity {
                     case "PATCHER_ERROR":
                         String err = intent.getStringExtra("error");
                         tvCurrentStage.setText(R.string.stage_failed);
-                        tvCurrentStage.setTextColor(
-                            ContextCompat.getColor(MainActivity.this,
-                                android.R.color.holo_red_light));
+                        tvCurrentStage.setTextColor(getColor(android.R.color.holo_red_light));
                         tvProgressDetail.setText(err);
-                        progressBar.setProgressCompat(0, true);
+                        progressBar.setProgress(0);
                         enableActions(true, false, false);
                         log("✗ Error: " + err);
                         break;
@@ -281,8 +240,7 @@ public class MainActivity extends AppCompatActivity {
         };
         String text = (stage >= 0 && stage < stages.length) ? stages[stage] : "Working...";
         tvCurrentStage.setText(text);
-        tvCurrentStage.setTextColor(
-            ContextCompat.getColor(this, android.R.color.white));
+        tvCurrentStage.setTextColor(getColor(android.R.color.white));
         tvProgressDetail.setText(detail != null ? detail : pct + "%");
     }
 
@@ -297,7 +255,7 @@ public class MainActivity extends AppCompatActivity {
             .setMessage(R.string.crash_recovery_body + "\n\n" + lastPath)
             .setPositiveButton("INSTALL", (d, w) -> installPatchedApk())
             .setNegativeButton("VERIFY", (d, w) -> verifyPatch())
-            .setNeutralButton(R.string.discard, (d, w) -> {
+            .setNeutralButton("DISCARD", (d, w) -> {
                 new File(lastPath).delete();
                 prefs.edit().remove("last_patch_path").apply();
                 lastPatchedApkPath = null;
@@ -317,19 +275,8 @@ public class MainActivity extends AppCompatActivity {
     private void ensurePermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             !getPackageManager().canRequestPackageInstalls()) {
-            try {
-                startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
-                    .setData(Uri.parse("package:" + getPackageName())));
-            } catch (Exception e) {
-                log("Cannot request install permission: " + e.getMessage());
-            }
-        }
-        // POST_NOTIFICATIONS permission (Android 13+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
-                notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
-            }
+            startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                .setData(Uri.parse("package:" + getPackageName())));
         }
     }
 
@@ -369,14 +316,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void onAppTapped(AppInfo app) {
+        // Warn about Play Store / Google apps
         String pkg = app.packageName.toLowerCase();
         if (pkg.contains("vending") || pkg.contains("google") ||
             pkg.contains("gms") || pkg.contains("playstore")) {
             new AlertDialog.Builder(this)
                 .setTitle(R.string.play_store_warning_title)
                 .setMessage(R.string.play_store_warning_body)
-                .setPositiveButton(R.string.continue_action,
-                    (d, w) -> selectApp(app))
+                .setPositiveButton(R.string.continue_action, (d, w) -> selectApp(app))
                 .setNegativeButton(R.string.cancel, null)
                 .show();
             return;
@@ -440,46 +387,28 @@ public class MainActivity extends AppCompatActivity {
         tvAdbInfo.setText("ADB: " + deviceIp + ":5555");
     }
 
-    private void startServiceCompat(Intent intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent);
-        } else {
-            startService(intent);
-        }
-    }
-
     private void toggleService() {
         Intent intent = new Intent(this, RootProviderService.class);
         if (!serviceRunning) {
-            startServiceCompat(intent);
+            startForegroundService(intent);
             serviceRunning = true;
-            updateServiceUI(true);
+            btnStartStop.setText(R.string.stop_service);
+            btnStartStop.setBackgroundTintList(
+                getColorStateList(android.R.color.holo_red_light));
+            tvServiceStatus.setText(R.string.service_active);
+            tvServiceStatus.setTextColor(
+                getColor(android.R.color.holo_green_light));
             log("✓ Service started | API: " + deviceIp + ":8443");
         } else {
             stopService(intent);
             serviceRunning = false;
-            updateServiceUI(false);
-            log("✗ Service stopped");
-        }
-    }
-
-    private void updateServiceUI(boolean running) {
-        if (running) {
-            btnStartStop.setText(R.string.stop_service);
-            btnStartStop.setBackgroundTintList(
-                ContextCompat.getColorStateList(this,
-                    android.R.color.holo_red_light));
-            tvServiceStatus.setText(R.string.service_active);
-            tvServiceStatus.setTextColor(
-                ContextCompat.getColor(this, android.R.color.holo_green_light));
-        } else {
             btnStartStop.setText(R.string.start_service);
             btnStartStop.setBackgroundTintList(
-                ContextCompat.getColorStateList(this,
-                    android.R.color.holo_green_light));
+                getColorStateList(android.R.color.holo_green_light));
             tvServiceStatus.setText(R.string.service_stopped);
             tvServiceStatus.setTextColor(
-                ContextCompat.getColor(this, android.R.color.holo_red_light));
+                getColor(android.R.color.holo_red_light));
+            log("✗ Service stopped");
         }
     }
 
@@ -490,4 +419,209 @@ public class MainActivity extends AppCompatActivity {
         }
         String lower = new File(selectedApkPath).getName().toLowerCase();
         if (lower.contains("play") || lower.contains("store") ||
-            lower.contains("google") || lower.co
+            lower.contains("google") || lower.contains("gms")) {
+            new AlertDialog.Builder(this)
+                .setTitle(R.string.play_store_warning_title)
+                .setMessage(R.string.play_store_warning_body)
+                .setPositiveButton(R.string.continue_action, (d, w) -> beginPatch())
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+            return;
+        }
+        beginPatch();
+    }
+
+    private void beginPatch() {
+        enableActions(false, false, false);
+        progressBar.setProgress(0);
+        tvCurrentStage.setText("Starting...");
+        tvCurrentStage.setTextColor(getColor(android.R.color.white));
+        tvProgressDetail.setText("Initializing...");
+
+        Intent i = new Intent(this, ApkPatcherService.class);
+        i.putExtra("apk_path", selectedApkPath);
+        startForegroundService(i);
+
+        log("=== PATCH STARTED ===");
+        log("  APK: " + (selectedAppName != null ? selectedAppName : selectedApkPath));
+    }
+
+    private void verifyPatch() {
+        if (lastPatchedApkPath == null || !new File(lastPatchedApkPath).exists()) {
+            Toast.makeText(this, "No patched APK to verify", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        tvCurrentStage.setText("Verifying...");
+        tvProgressDetail.setText("Checking integrity...");
+        btnVerify.setEnabled(false);
+
+        new Thread(() -> {
+            try {
+                File apk = new File(lastPatchedApkPath);
+                StringBuilder r = new StringBuilder();
+                r.append("=== VERIFICATION ===\n");
+                r.append("File: ").append(apk.getName()).append("\n");
+                r.append("Size: ").append(String.format("%.1f MB",
+                    apk.length() / 1048576.0)).append("\n\n");
+
+                try (ZipFile zf = new ZipFile(apk)) {
+                    r.append("[✓] Valid ZIP (").append(zf.size()).append(" entries)\n");
+                    check(r, zf, "AndroidManifest.xml", "AndroidManifest.xml");
+                    check(r, zf, "classes.dex", "classes.dex");
+                    check(r, zf, "Frida gadget", "lib/arm64-v8a/libfridagadget.so");
+                    check(r, zf, "bypass_root.js", "assets/bypass_root.js");
+                    check(r, zf, "frida config", "assets/frida-gadget.config.json");
+                    check(r, zf, "META-INF", "META-INF/MANIFEST.MF");
+                } catch (Exception e) {
+                    r.append("[✗] Not a valid ZIP: ").append(e.getMessage()).append("\n");
+                }
+
+                boolean pass = r.indexOf("[✗]") == -1;
+                r.append("\n=== VERDICT: ").append(pass ? "VALID ✓" : "INCOMPLETE ✗").append(" ===");
+
+                String fr = r.toString();
+                runOnUiThread(() -> {
+                    log(fr);
+                    tvCurrentStage.setText(pass ? "✓ VERIFIED OK" : "✗ VERIFY FAILED");
+                    tvCurrentStage.setTextColor(getColor(pass ?
+                        android.R.color.holo_green_light : android.R.color.holo_red_light));
+                });
+                btnVerify.setEnabled(true);
+            } catch (Exception e) {
+                String errMsg = "Verification error: " + e.getMessage();
+                log(errMsg);
+                runOnUiThread(() -> {
+                    tvCurrentStage.setText("✗ VERIFY FAILED");
+                    tvCurrentStage.setTextColor(getColor(android.R.color.holo_red_light));
+                    tvProgressDetail.setText(errMsg);
+                    btnVerify.setEnabled(true);
+                });
+            }
+        }).start();
+    }
+
+    private void check(StringBuilder r, ZipFile zf, String label, String path) {
+        ZipEntry entry = zf.getEntry(path);
+        if (entry != null) {
+            r.append("[✓] ").append(label).append(" (").append(entry.getSize()).append(" bytes)\n");
+        } else {
+            r.append("[✗] ").append(label).append(" MISSING\n");
+        }
+    }
+
+    private void installPatchedApk() {
+        if (lastPatchedApkPath == null || !new File(lastPatchedApkPath).exists()) {
+            Toast.makeText(this, "No patched APK to install", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        File apk = new File(lastPatchedApkPath);
+        try {
+            Uri uri = FileProvider.getUriForFile(this,
+                "com.rootprovider.fileprovider", apk);
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(uri, "application/vnd.android.package-archive");
+            intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            log("Installing: " + apk.getName());
+        } catch (Exception e) {
+            // Fallback: copy to Downloads and request install
+            try {
+                File downloads = Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_DOWNLOADS);
+                File copy = new File(downloads, apk.getName());
+                try (InputStream in = new FileInputStream(apk);
+                     OutputStream out = new FileOutputStream(copy)) {
+                    byte[] buf = new byte[8192];
+                    int len;
+                    while ((len = in.read(buf)) > 0) out.write(buf, 0, len);
+                }
+                Uri uri = FileProvider.getUriForFile(this,
+                    "com.rootprovider.fileprovider", copy);
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                intent.setDataAndType(uri, "application/vnd.android.package-archive");
+                intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                log("Copied to Downloads: " + copy.getAbsolutePath());
+            } catch (Exception e2) {
+                log("Install error: " + e2.getMessage());
+                Toast.makeText(this, "Cannot install APK", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private String getFileName(Uri uri) {
+        String name = "unknown.apk";
+        try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (idx >= 0) name = cursor.getString(idx);
+            }
+        } catch (Exception ignored) {}
+        if (name == null || !name.toLowerCase().endsWith(".apk")) name += ".apk";
+        return name;
+    }
+
+    private void log(String msg) {
+        String ts = new SimpleDateFormat("HH:mm:ss", Locale.US)
+            .format(new Date());
+        runOnUiThread(() -> {
+            tvLog.append("[" + ts + "] " + msg + "\n");
+            // Auto-scroll to bottom
+            ((ScrollView) tvLog.getParent()).fullScroll(View.FOCUS_DOWN);
+        });
+    }
+
+    // -- Data classes --
+
+    static class AppInfo {
+        final String name;
+        final String packageName;
+        final Drawable icon;
+        AppInfo(String name, String pkg, Drawable icon) {
+            this.name = name;
+            this.packageName = pkg;
+            this.icon = icon;
+        }
+    }
+
+    class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.ViewHolder> {
+        private List<AppInfo> items = new ArrayList<>();
+
+        void setData(List<AppInfo> list) {
+            items = list;
+            notifyDataSetChanged();
+        }
+
+        @Override
+        public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+            View v = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.item_app, parent, false);
+            return new ViewHolder(v);
+        }
+
+        @Override
+        public void onBindViewHolder(ViewHolder h, int pos) {
+            AppInfo app = items.get(pos);
+            h.name.setText(app.name);
+            h.pkg.setText(app.packageName);
+            h.icon.setImageDrawable(app.icon);
+            h.itemView.setOnClickListener(v -> onAppTapped(app));
+        }
+
+        @Override
+        public int getItemCount() { return items.size(); }
+
+        class ViewHolder extends RecyclerView.ViewHolder {
+            final TextView name, pkg;
+            final ImageView icon;
+            ViewHolder(View v) {
+                super(v);
+                name = v.findViewById(R.id.appName);
+                pkg = v.findViewById(R.id.appPackage);
+                icon = v.findViewById(R.id.appIcon);
+            }
+        }
+    }
+}

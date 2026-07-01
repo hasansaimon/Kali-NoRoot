@@ -736,44 +736,34 @@ public class ApkModifier {
      * required for JAR signing (CERT.RSA).
      */
     private byte[] createPKCS7(byte[] signature, byte[] signedContent) throws Exception {
-        // Use BouncyCastle's CMS API
+        // Use BouncyCastle's CMS API (correct usage)
         java.util.List<X509Certificate> certList = new ArrayList<>();
         certList.add(certificate);
 
-        org.bouncycastle.cms.CMSSignedDataGenerator generator =
-                new org.bouncycastle.cms.CMSSignedDataGenerator();
+        org.bouncycastle.cms.CMSSignedDataGenerator generator = new org.bouncycastle.cms.CMSSignedDataGenerator();
 
-        // Add signer info
+        // Digest calculator provider
+        org.bouncycastle.operator.DigestCalculatorProvider digProv =
+            new org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder()
+                .setProvider("BC").build();
+
         org.bouncycastle.cms.jcajce.JcaSignerInfoGeneratorBuilder signerBuilder =
-                new org.bouncycastle.cms.jcajce.JcaSignerInfoGeneratorBuilder(
-                        new org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder()
-                                .setProvider("BC").build());
-        generator.addSignerInfoGenerator(
-                signerBuilder.build(
-                        new org.bouncycastle.cms.jcajce.JcaSimpleSignerInfoVerifierBuilder()
-                                .setProvider("BC").build(privateKey),
-                        certificate));
+            new org.bouncycastle.cms.jcajce.JcaSignerInfoGeneratorBuilder(digProv);
+
+        // Build a ContentSigner from the private key
+        org.bouncycastle.operator.ContentSigner contentSigner =
+            new org.bouncycastle.operator.jcajce.JcaContentSignerBuilder("SHA256withRSA")
+                .setProvider("BC").build(privateKey);
+
+        generator.addSignerInfoGenerator(signerBuilder.build(contentSigner, certificate));
 
         // Add the certificate
-        org.bouncycastle.cms.jcajce.JcaCertStore certStore =
-                new org.bouncycastle.cms.jcajce.JcaCertStore(certList);
+        org.bouncycastle.cert.jcajce.JcaCertStore certStore = new org.bouncycastle.cert.jcajce.JcaCertStore(certList);
         generator.addCertificates(certStore);
 
-        // Generate CMS SignedData
-        org.bouncycastle.asn1.ASN1ObjectIdentifier dataOid =
-                org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers.data;
-        org.bouncycastle.cms.CMSTypedData content =
-                new org.bouncycastle.cms.jcajce.JcaSimpleSignerInfoVerifierBuilder()
-                        .setProvider("BC").build(privateKey)
-                        .getAssociatedCertificates() == null
-                ? new org.bouncycastle.cms.CMSProcessableByteArray(signedContent)
-                : new org.bouncycastle.cms.CMSProcessableByteArray(dataOid, signedContent);
-
-        // Actually let's use the simpler approach with CMSSignedData
-        org.bouncycastle.cms.CMSProcessableByteArray processable =
-                new org.bouncycastle.cms.CMSProcessableByteArray(signedContent);
+        // Create CMS processable and generate signed data
+        org.bouncycastle.cms.CMSProcessableByteArray processable = new org.bouncycastle.cms.CMSProcessableByteArray(signedContent);
         org.bouncycastle.cms.CMSSignedData signedData = generator.generate(processable, true);
-
         return signedData.getEncoded();
     }
 
