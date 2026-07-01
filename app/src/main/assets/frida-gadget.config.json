@@ -1,1 +1,7 @@
-{"interaction":{"type":"listen","address":"127.0.0.1:27042","on_port":"reuse"},"scripts":{"load":["bypass_root.js"],"on_change":"reload"}}
+{
+  "interaction": {
+    "type": "script",
+    "path": "assets/bypass_root.js",
+    "on_change": "reload"
+  }
+}
