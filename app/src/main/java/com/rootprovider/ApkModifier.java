@@ -26,31 +26,15 @@ public class ApkModifier {
 
     // Resource ID for android:debuggable = 0x0101000E
     private static final int RES_ID_DEBUGGABLE = 0x0101000E;
-    // Resource ID for android:name
-    private static final int RES_ID_NAME = 0x01010003;
-    // Resource ID for android:icon
-    private static final int RES_ID_ICON = 0x01010002;
-    // Resource ID for android:label
-    private static final int RES_ID_LABEL = 0x01010001;
-    // Resource ID for android:theme
-    private static final int RES_ID_THEME = 0x01010000;
-    // Resource ID for android:allowBackup
-    private static final int RES_ID_ALLOW_BACKUP = 0x01010084;
 
     // AXML chunk types
     private static final int CHUNK_AXML = 0x0003;
     private static final int CHUNK_STRING_POOL = 0x0001;
     private static final int CHUNK_RESOURCE_IDS = 0x0002;
-    private static final int CHUNK_START_NAMESPACE = 0x0010;
-    private static final int CHUNK_END_NAMESPACE = 0x0011;
     private static final int CHUNK_START_TAG = 0x0102;
-    private static final int CHUNK_END_TAG = 0x0103;
-    private static final int CHUNK_TEXT = 0x0104;
 
     // Attribute value types
     private static final int ATTR_TYPE_BOOLEAN = 0x12;
-    private static final int ATTR_TYPE_STRING = 0x03;
-    private static final int ATTR_TYPE_INT_DEC = 0x10;
 
     // META-INF directory keys to skip during copy
     private static final Set<String> META_SKIP = new HashSet<>(Arrays.asList(

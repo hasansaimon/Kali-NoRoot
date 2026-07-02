@@ -1,0 +1,9 @@
+
+> Task :app:downloadFridaGadgets
+Frida gadget already exists for arm64-v8a, skipping.
+Frida gadget already exists for armeabi-v7a, skipping.
+Frida gadget already exists for x86_64, skipping.
+Frida gadget already exists for x86, skipping.
+
+BUILD SUCCESSFUL in 1s
+1 actionable task: 1 executed

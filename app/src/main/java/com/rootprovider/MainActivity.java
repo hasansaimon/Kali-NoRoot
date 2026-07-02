@@ -1,6 +1,7 @@
 package com.rootprovider;
 
 import android.app.ActivityManager;
+import android.Manifest;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -34,9 +35,11 @@ import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.cardview.widget.CardView;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -115,6 +118,16 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+    // Permission launcher (API 33+)
+    private final ActivityResultLauncher<String> notifPermissionLauncher =
+        registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+            if (!granted) {
+                Toast.makeText(this,
+                    "Notification permission denied — patcher notifications will be hidden",
+                    Toast.LENGTH_LONG).show();
+            }
+        });
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -126,7 +139,35 @@ public class MainActivity extends AppCompatActivity {
         ensurePermissions();
         loadInstalledApps();
         getDeviceIp();
-        checkCrashRecovery();
+        if (savedInstanceState == null) {
+            checkCrashRecovery();
+        } else {
+            selectedApkPath = savedInstanceState.getString("apk_path");
+            selectedAppName = savedInstanceState.getString("app_name");
+            lastPatchedApkPath = savedInstanceState.getString("last_patch");
+            serviceRunning = savedInstanceState.getBoolean("service_running", false);
+            if (serviceRunning) {
+                btnStartStop.setText(R.string.stop_service);
+                btnStartStop.setBackgroundTintList(
+                    getColorStateList(android.R.color.holo_red_light));
+                tvServiceStatus.setText(R.string.service_active);
+                tvServiceStatus.setTextColor(getColor(android.R.color.holo_green_light));
+            }
+            if (lastPatchedApkPath != null && new File(lastPatchedApkPath).exists()) {
+                enableActions(false, true, true);
+            } else if (selectedApkPath != null) {
+                enableActions(true, false, false);
+            }
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString("apk_path", selectedApkPath);
+        outState.putString("app_name", selectedAppName);
+        outState.putString("last_patch", lastPatchedApkPath);
+        outState.putBoolean("service_running", serviceRunning);
     }
 
     private void initViews() {
@@ -275,8 +316,18 @@ public class MainActivity extends AppCompatActivity {
     private void ensurePermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             !getPackageManager().canRequestPackageInstalls()) {
-            startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
-                .setData(Uri.parse("package:" + getPackageName())));
+            try {
+                startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                    .setData(Uri.parse("package:" + getPackageName())));
+            } catch (Exception e) {
+                log("Cannot request install permission: " + e.getMessage());
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+                notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+            }
         }
     }
 
