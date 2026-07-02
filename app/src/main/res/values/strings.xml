@@ -1,3 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">RootSpoofer</string>
-    </resources>
+    <string name="app_name">RootProvider v2.1</string>
+
+    <!-- Main screen -->
+    <string name="service_section">Fake Root Provider</string>
+    <string name="start_service">START ROOT PROVIDER</string>
+    <string name="stop_service">STOP ROOT PROVIDER</string>
+    <string name="service_stopped">○ Service Stopped</string>
+    <string name="service_active">● FAKE ROOT ACTIVE</string>
+
+    <!-- App picker -->
+    <string name="picker_section">Select App to Patch</string>
+    <string name="search_hint">Search installed apps…</string>
+    <string name="pick_apk">PICK FROM FILE</string>
+    <string name="no_app_selected">No app selected</string>
+
+    <!-- Status monitor -->
+    <string name="monitor_section">Patching Status</string>
+    <string name="stage_idle">Idle — Select an APK to begin</string>
+    <string name="stage_analyze">Analyzing APK…</string>
+    <string name="stage_extract">Extracting APK…</string>
+    <string name="stage_decompile">Decompiling with apktool…</string>
+    <string name="stage_inject">Injecting fake root environment…</string>
+    <string name="stage_frida">Deploying Frida gadget…</string>
+    <string name="stage_patch_smali">Patching smali entry points…</string>
+    <string name="stage_debuggable">Setting debuggable flag…</string>
+    <string name="stage_recompile">Recompiling APK…</string>
+    <string name="stage_sign">Signing APK…</string>
+    <string name="stage_verify">Verifying patched APK…</string>
+    <string name="stage_done">✓ PATCH COMPLETE</string>
+    <string name="stage_failed">✗ PATCH FAILED</string>
+
+    <!-- Action buttons -->
+    <string name="patch">PATCH APK</string>
+    <string name="verify">VERIFY</string>
+    <string name="install">INSTALL</string>
+
+    <!-- Log -->
+    <string name="log_title">Log</string>
+
+    <!-- Play Store warning -->
+    <string name="play_store_warning_title">Play Store / Google Service App Detected</string>
+    <string name="play_store_warning_body">This appears to be a Play Store or Google Services app. Patching system/Google apps may cause:
+
+• App crashes on launch
+• Google Play Protect warnings
+• Login/session issues
+• App may refuse to run
+
+Do you want to continue anyway?</string>
+    <string name="continue_action">CONTINUE</string>
+    <string name="cancel">CANCEL</string>
+
+    <!-- Crash recovery -->
+    <string name="crash_recovery_title">Previous Patch Incomplete</string>
+    <string name="crash_recovery_body">It looks like the previous patching session was interrupted. A patched APK was found. What would you like to do?</string>
+    <string name="discard">DISCARD</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_description">RootProvider accessibility service for APK patching and root environment injection</string>
+
+    <!-- Notifications -->
+    <string name="channel_patcher">APK Patcher</string>
+    <string name="channel_service">Root Provider Service</string>
+    <string name="patcher_notification">Patching APK…</string>
+    <string name="service_notification">Fake root provider running</string>
+</resources>

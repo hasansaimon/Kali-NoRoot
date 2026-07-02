@@ -1,0 +1,7 @@
+{
+  "interaction": {
+    "type": "script",
+    "path": "assets/bypass_root.js",
+    "on_change": "reload"
+  }
+}
